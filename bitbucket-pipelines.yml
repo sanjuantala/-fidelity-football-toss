@@ -1,0 +1,81 @@
+# Linting processes
+linter: &linter
+  name: "Run ESLint and StyleLint"
+  image: node:16.13.0
+  caches:
+    - node
+    - globalnode
+  script:
+    - npm i
+    - npm run lint
+    - npm run stylelint
+
+# Build process
+build: &build
+  name: "Build React App"
+  image: node:16.13.0
+  caches:
+    - node
+    - globalnode
+  script:
+    - npm i
+    - npm run build
+  artifacts:
+    - build/**
+
+deploystaging: &deploystaging
+  name: "Deploy to S3 Staging"
+  deployment: staging
+  script:
+    - pipe: atlassian/aws-s3-deploy:0.3.8
+      variables:
+        AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+        AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+        AWS_DEFAULT_REGION: 'us-east-2'
+        S3_BUCKET: 'fidelity-bloom-football-toss-dev'
+        LOCAL_PATH: 'build'
+    - pipe: atlassian/aws-cloudfront-invalidate:0.6.0
+      variables:
+        AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+        AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+        AWS_DEFAULT_REGION: 'us-east-2'
+        DISTRIBUTION_ID: 'E14Y4A8YEYH4HU'
+deployprod: &deployprod
+  name: "Deploy to S3 Production"
+  deployment: production
+  script:
+    - pipe: atlassian/aws-s3-deploy:0.3.8
+      variables:
+        AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+        AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+        AWS_DEFAULT_REGION: 'us-east-2'
+        S3_BUCKET: 'fidelity-bloom-football-toss-prod'
+        LOCAL_PATH: 'build'
+    - pipe: atlassian/aws-cloudfront-invalidate:0.6.0
+      variables:
+        AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+        AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+        AWS_DEFAULT_REGION: 'us-east-2'
+        DISTRIBUTION_ID: 'E1RH8YI6ATCLTQ'
+pipelines:
+  default:
+    - step:
+        <<: *linter
+  branches:
+    develop:
+      - step:
+          <<: *build
+    staging:
+      - step:
+          <<: *build
+      - step:
+          <<: *deploystaging
+    production:
+      - step:
+          <<: *build
+      - step:
+          <<: *deployprod
+definitions:
+  caches:
+    # Cache node modules installed globally
+    globalnode: /usr/local/lib/node_modules
